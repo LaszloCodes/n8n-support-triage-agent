@@ -1,0 +1,426 @@
+{
+  "name": "Brightroof customer service agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "brightroof-agent",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "c2e4f1e2-bfd6-4b7b-a54a-6f8cadb5939d",
+      "name": "Webhook trigger"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.query }}\n",
+        "options": {
+          "systemMessage": "=You are a helpful customer service agent for Brightroof, a UK solar subscription company offering solar panels with no upfront cost from £69 per month.\n\nAnswer the following customer query accurately and helpfully using the tools available to you.\n\nCustomer name: {{ $json.body.customer_name.split(' ')[0] }}\nCustomer email: {{ $json.body.customer_email }}\nQuery: {{ $json.body.query }}\n\nThe very last line of your response must be exactly one of these, with nothing after it:\nCOMPLEXITY: SIMPLE\nCOMPLEXITY: COMPLEX\n\nUse SIMPLE if you can answer fully and confidently.\nUse COMPLEX if the query requires a site visit, human expertise, or involves a complaint.\n\nWrite only the body of the reply. Do not start with a greeting or the customer's name, and do not add a sign-off or signature. The greeting and sign-off are added automatically.\n\nWrite in plain text. Do not use Markdown, asterisks, bold or headings. Use short paragraphs and simple numbered lines only if needed.\n\nOnly offer actions you can actually take with your tools. Do not offer to check accounts, escalate, or contact anyone.\n\nIf the query is a complaint or needs a site visit or human expertise, write a short holding reply instead of a full answer: acknowledge the issue, apologise where appropriate, and say a member of the team will be in touch shortly. Do not give troubleshooting steps or ask the customer to inspect equipment."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        352,
+        0
+      ],
+      "id": "812ae9fa-3151-4b9f-8d59-d9ea688689f9",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        192,
+        240
+      ],
+      "id": "f5012f7f-fe7c-4c83-89e3-086785a615b9",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "Searches Brightroof FAQ for answers to common questions about installation, warranties, contracts, and the subscription model. Use for general product questions.",
+        "jsCode": "const input = $input.item.json.input || $input.item.json.query || '';\nconst question = input.toLowerCase();\n\nconst faqs = {\n  'upfront': 'Brightroof Plus requires zero upfront cost. You pay a fixed monthly subscription from £69 and own the system from day one.',\n  'contract': 'Brightroof subscriptions run for 20 years with full maintenance, insurance and battery replacement included.',\n  'installation': 'Installation typically takes one day. Brightroof handles all paperwork, grid connection, and MCS certification.',\n  'battery': 'All Brightroof Plus systems include a battery. Replacement is free under the subscription.',\n  'export': 'Yes — Brightroof customers can export surplus energy back to the grid and earn export tariff payments.',\n  'mortgage': 'Unlike roof lease schemes, Brightroof customers own their system outright, so there are no mortgage complications.',\n  'maintenance': 'All maintenance is included in the subscription. Brightroof monitors your system 24/7 and resolves issues proactively.',\n  'cancel': 'Early termination fees apply. Contact Brightroof to discuss your specific situation.',\n  'save': 'In more than 8 out of 10 cases the monthly energy saving exceeds the subscription cost from day one.',\n  'cost': 'Brightroof Plus subscriptions start from £69 per month with no upfront cost.',\n  'price': 'Brightroof Plus subscriptions start from £69 per month with no upfront cost.',\n  'monthly': 'Brightroof Plus subscriptions start from £69 per month with no upfront cost.',\n  'subscription': 'Brightroof Plus subscriptions start from £69 per month with no upfront cost. You own the system from day one.',\n  'plan': 'Brightroof offers Brightroof Plus — a subscription from £69 per month with zero upfront cost, full maintenance, and battery replacement included.'\n};\n\nconst matchedKey = Object.keys(faqs).find(key => question.includes(key));\nreturn matchedKey ? \n  faqs[matchedKey] : \n  'Please contact Brightroof directly for more information on this topic.';"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        336,
+        240
+      ],
+      "id": "b311fff9-3c4d-462f-b585-0f83862f29aa",
+      "name": "search_faq"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Checks solar suitability for a UK location based on postcode. Use when the customer mentions their postcode or location.",
+        "url": "=https://api.postcodes.io/postcodes/{{ $fromAI('postcode', 'the UK postcode mentioned by the customer', 'string') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.4,
+      "position": [
+        496,
+        240
+      ],
+      "id": "aeb431d3-3fd4-4249-93f7-f8e2303c4789",
+      "name": "check_solar_suitability"
+    },
+    {
+      "parameters": {
+        "description": "Estimates monthly subscription cost and energy savings based on property type and current monthly energy bill. Use when customer asks about cost or pricing for their specific situation.",
+        "jsCode": "const input = $input.item.json.input || '';\nconst monthlyBill = parseFloat(input.match(/£?(\\d+)/)?.[1]) || 150;\nconst propertyType = input.toLowerCase().includes('detached') ? 'detached' :\n                     input.toLowerCase().includes('semi') ? 'semi-detached' : 'house';\n\nconst baseSubscription = propertyType === 'detached' ? 89 : \n                         propertyType === 'semi-detached' ? 79 : 69;\n\nconst estimatedSaving = monthlyBill * 0.7;\nconst netMonthlyBenefit = estimatedSaving - baseSubscription;\n\nreturn `Based on your ${propertyType} with a £${monthlyBill} monthly bill:\n- Estimated Brightroof Plus subscription: £${baseSubscription} per month\n- Estimated monthly energy saving: £${estimatedSaving.toFixed(0)}\n- Net monthly benefit: ${netMonthlyBenefit > 0 ? `£${netMonthlyBenefit.toFixed(0)} better off per month` : 'savings depend on usage patterns'}\n- No upfront cost required`;"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        672,
+        240
+      ],
+      "id": "a6e97d88-fd3d-4992-a059-d12a747b3b00",
+      "name": "get_pricing_estimate"
+    },
+    {
+      "parameters": {
+        "jsCode": "try {\n  const agentResponse = ($input.item.json.output || '').trim();\n  const webhookData = $('Webhook trigger').item.json.body;\n\n  // Find the tag at the end, allowing small variations like \"COMPLEX: COMPLEX\"\n  const tagMatch = agentResponse.match(/(COMPLEXITY|COMPLEX)\\s*:\\s*(SIMPLE|COMPLEX)\\s*$/i);\n  const tag = tagMatch ? tagMatch[2].toUpperCase() : null;\n\n  // Fail safe: anything not clearly SIMPLE goes to a human\n  const complexity = tag === 'SIMPLE' ? 'simple' : 'complex';\n\n  // Remove the tag from the reply\n  const cleanResponse = tagMatch\n    ? agentResponse.slice(0, tagMatch.index).trim()\n    : agentResponse;\n\n  return [{\n    json: {\n      customer_name: webhookData.customer_name,\n      customer_email: webhookData.customer_email,\n      query: webhookData.query,\n      agent_response: cleanResponse,\n      complexity: complexity\n    }\n  }];\n} catch (e) {\n  return [{ json: { error: e.message, complexity: 'complex' } }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        816,
+        0
+      ],
+      "id": "3f2830d2-7e39-4d8c-b260-50c06a29f46d",
+      "name": "Query parser"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8c9622a7-446a-4126-b5a7-d1fe3fbd8f5f",
+              "leftValue": "={{ $json.complexity }}",
+              "rightValue": "simple",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "1b999205-f169-4135-a189-d389ab6ac1a6",
+      "name": "Simple query?"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Query parser').item.json.customer_email }}",
+        "subject": "Re: Your Brightroof solar enquiry",
+        "emailType": "text",
+        "message": "=Hi {{ $('Query parser').item.json.customer_name.split(' ')[0] }},\n\n{{ $('Query parser').item.json.agent_response }}\n\nIf you have any further questions please don't hesitate to get in touch.\n\nWarm regards,\nThe Brightroof Team",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1264,
+        -96
+      ],
+      "id": "f7d4c75a-c009-4396-8361-8ac68b5eeebb",
+      "name": "Send a message",
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "Re: Your Brightroof solar enquiry",
+        "message": "=Hi {{ $('Query parser').item.json.customer_name.split(' ')[0] }},\n\n{{ $('Query parser').item.json.agent_response }}\n\nIf you have any further questions please don't hesitate to get in touch.\n\nWarm regards,\nThe Brightroof Team",
+        "options": {
+          "sendTo": "={{ $('Query parser').item.json.customer_email }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1264,
+        96
+      ],
+      "id": "f2dfe7ca-ae68-4f0e-9b83-de5f7c1a6e8e",
+      "name": "Create a draft",
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Enquiries"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "customer_name": "={{ $('Query parser').item.json.customer_name }}",
+            "customer_email": "={{ $('Query parser').item.json.customer_email }}",
+            "query": "={{ $('Query parser').item.json.query }}",
+            "agent_response": "={{ $('Query parser').item.json.agent_response }}",
+            "complexity": "={{ $('Query parser').item.json.complexity }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_email",
+              "displayName": "customer_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "agent_response",
+              "displayName": "agent_response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "complexity",
+              "displayName": "complexity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "action",
+              "displayName": "action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "useAppend": true
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1488,
+        0
+      ],
+      "id": "1ff99510-b5ec-4fa2-99f6-4d9049d56c60",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "search_faq": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "check_solar_suitability": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_pricing_estimate": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Query parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query parser": {
+      "main": [
+        [
+          {
+            "node": "Simple query?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple query?": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create a draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a draft": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "nodeGroups": [],
+  "tags": []
+}
