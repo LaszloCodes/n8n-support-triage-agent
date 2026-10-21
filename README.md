@@ -2,7 +2,9 @@
 
 An AI customer service agent built in n8n that answers solar subscription enquiries, decides whether each one can be handled automatically, and routes it accordingly: simple questions get an instant email reply, while complaints and anything needing a site visit become a Gmail draft for a human to review. Every enquiry is logged to Google Sheets.
 
-https://github.com/LaszloCodes/n8n-support-triage-agent/blob/main/assets/brightroof-agent-demo.mp4
+
+https://github.com/user-attachments/assets/b8cef50b-fe4f-45f8-ae49-708ee31a272d
+
 
 > Brightroof is a fictional company. The FAQ answers and pricing logic are illustrative and hard-coded.
 
