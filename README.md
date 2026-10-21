@@ -2,7 +2,7 @@
 
 An AI customer service agent built in n8n that answers solar subscription enquiries, decides whether each one can be handled automatically, and routes it accordingly: simple questions get an instant email reply, while complaints and anything needing a site visit become a Gmail draft for a human to review. Every enquiry is logged to Google Sheets.
 
-<!-- Demo video: when editing this file on GitHub, drag brightroof-agent-demo.mp4 onto this line -->
+https://github.com/LaszloCodes/n8n-support-triage-agent/blob/main/assets/brightroof-agent-demo.mp4
 
 > Brightroof is a fictional company. The FAQ answers and pricing logic are illustrative and hard-coded.
 
@@ -12,21 +12,8 @@ Most inbound support volume is repetitive (pricing, contract length, installatio
 
 ## How it works
 
-![Workflow canvas](docs/canvas.png)
+![Workflow canvas](assets/n8n-workflow.png)
 
-```mermaid
-flowchart LR
-    A[Webhook<br/>POST enquiry] --> B[AI Agent<br/>gpt-4o-mini]
-    T1[search_faq] -.tool.-> B
-    T2[check_solar_suitability] -.tool.-> B
-    T3[get_pricing_estimate] -.tool.-> B
-    B --> C[Query parser]
-    C --> D{Simple query?}
-    D -- yes --> E[Gmail: send reply]
-    D -- no --> F[Gmail: create draft]
-    E --> G[Google Sheets: log]
-    F --> G
-```
 
 1. **Webhook trigger** receives a POST with the customer's name, email and question.
 2. **AI Agent** (OpenAI `gpt-4o-mini`) answers using three tools and ends its reply with `COMPLEXITY: SIMPLE` or `COMPLEXITY: COMPLEX`. Complaints and anything needing a site visit or human expertise are COMPLEX, and for those it writes a short holding reply rather than attempting a full answer. The full prompt is in [`prompts/system-prompt.md`](prompts/system-prompt.md).
